@@ -574,6 +574,8 @@ def create_prefix_list(client: Any, prefix_list_name: str, prefix_list_ip_versio
                 time.sleep(seconds_to_wait)
                 wait_prefix_list: dict[str, Any] = get_prefix_list_by_id(client, response['PrefixList']['PrefixListId'])
                 if wait_prefix_list['State'] in {'create-complete', 'modify-complete'}:
+                    # update response['PrefixList']['Version'] after modify-complete
+                    response['PrefixList'] = wait_prefix_list
                     break
             else:
                 # Else doesn't execute if exit via break
@@ -692,6 +694,8 @@ def update_prefix_list(client: Any, prefix_list_name: str, prefix_list: dict[str
                     time.sleep(seconds_to_wait)
                     wait_prefix_list: dict[str, Any] = get_prefix_list_by_id(client, response['PrefixList']['PrefixListId'])
                     if wait_prefix_list['State'] in {'modify-complete'}:
+                        # update response['PrefixList']['Version'] after modify-complete
+                        response['PrefixList'] = wait_prefix_list
                         break
                 else:
                     # Else doesn't execute if exit via break
@@ -704,8 +708,8 @@ def update_prefix_list(client: Any, prefix_list_name: str, prefix_list: dict[str
                 PrefixListId=response['PrefixList']['PrefixListId'],
                 CurrentVersion=response['PrefixList']['Version'],
                 PrefixListName=response['PrefixList']['PrefixListName'],
-                AddEntries=entries_to_add[0:100],
-                RemoveEntries=entries_to_remove[0:100]
+                AddEntries=entries_to_add[index:index+100],
+                RemoveEntries=entries_to_remove[index:index+100]
             )
             logging.info(f'Updated VPC Prefix List "{prefix_list_name}"')
             logging.info(f'Response: {response}')
