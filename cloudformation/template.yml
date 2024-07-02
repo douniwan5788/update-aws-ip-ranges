@@ -160,7 +160,9 @@ Resources:
                   StringLike:
                     'aws:ResourceTag/Name':
                       - 'aws-ip-ranges-*-ipv4'
+                      - 'aws-ip-ranges-*-ipv4-continued-?'
                       - 'aws-ip-ranges-*-ipv6'
+                      - 'aws-ip-ranges-*-ipv6-continued-?'
 
               - Effect: 'Allow'
                 Action:
@@ -174,7 +176,9 @@ Resources:
                   StringLike:
                     'aws:RequestTag/Name':
                       - 'aws-ip-ranges-*-ipv4'
+                      - 'aws-ip-ranges-*-ipv4-continued-?'
                       - 'aws-ip-ranges-*-ipv6'
+                      - 'aws-ip-ranges-*-ipv6-continued-?'
                   'ForAllValues:StringEquals':
                     'aws:TagKeys':
                       - 'Name'

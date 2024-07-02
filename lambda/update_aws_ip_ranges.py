@@ -5,6 +5,7 @@ SPDX-License-Identifier: MIT-0
 
 import hashlib
 import ipaddress
+import itertools
 import json
 import logging
 import os
@@ -423,7 +424,7 @@ def get_ip_set_entries(client: Any, ipset_name: str, ipset_scope: str, ipset_id:
 
 
 ### VPC Prefix List
-def manage_prefix_list(client: Any, vpc_prefix_lists: dict[str, dict], service_name: str, service_ranges: dict[str, ServiceIPRange], should_summarize: bool) -> dict[str, list[str]]:
+def manage_prefix_list(client: Any, vpc_prefix_lists: dict[str, dict], service_name: str, service_ranges: dict[str, ServiceIPRange], should_summarize: bool, chunk_size: int) -> dict[str, list[str]]:
     """Create or Update VPC Prefix List"""
     logging.info('manage_prefix_list start')
     logging.debug(f'Parameter client: {client}')
@@ -445,18 +446,24 @@ def manage_prefix_list(client: Any, vpc_prefix_lists: dict[str, dict], service_n
             if should_summarize and (len(address_list) > 1):
                 address_list = service_ranges[service_name].asdict()[ip_version].summarized()
 
-            prefix_list_name: str = f"{RESOURCE_NAME_PREFIX}-{service_name.lower().replace('_', '-')}-{ip_version}"
-            if prefix_list_name in vpc_prefix_lists:
-                # Prefix List exists, so will update it
-                logging.debug(f'VPC Prefix List "{prefix_list_name}" found. Will update it.')
-                updated: bool = update_prefix_list(client, prefix_list_name, vpc_prefix_lists[prefix_list_name], address_list)
-                if updated:
-                    prefix_list_names['updated'].append(prefix_list_name)
-            else:
-                # Prefix List not found, so will create it
-                logging.debug(f'VPC Prefix List "{prefix_list_name}" not found. Will create it.')
-                create_prefix_list(client, prefix_list_name, ip_version.upper(), address_list)
-                prefix_list_names['created'].append(prefix_list_name)
+            base_prefix_list_name: str = f"{RESOURCE_NAME_PREFIX}-{service_name.lower().replace('_', '-')}-{ip_version}"
+            for index, address_list_chunk in enumerate(itertools.batched(address_list, chunk_size)):
+                if index == 0:
+                    prefix_list_name = base_prefix_list_name
+                else:
+                    prefix_list_name = f"{base_prefix_list_name}-continued-{index}"
+                    
+                if prefix_list_name in vpc_prefix_lists:
+                    # Prefix List exists, so will update it
+                    logging.debug(f'VPC Prefix List "{prefix_list_name}" found. Will update it.')
+                    updated: bool = update_prefix_list(client, prefix_list_name, vpc_prefix_lists[prefix_list_name], address_list_chunk)
+                    if updated:
+                        prefix_list_names['updated'].append(prefix_list_name)
+                else:
+                    # Prefix List not found, so will create it
+                    logging.debug(f'VPC Prefix List "{prefix_list_name}" not found. Will create it.')
+                    create_prefix_list(client, prefix_list_name, ip_version.upper(), address_list_chunk)
+                    prefix_list_names['created'].append(prefix_list_name)
 
     logging.debug(f'Function return: {prefix_list_names}')
     logging.info('manage_prefix_list end')
@@ -526,7 +533,7 @@ def create_prefix_list(client: Any, prefix_list_name: str, prefix_list_ip_versio
     logging.debug(f'Prefix List entries: {prefix_list_entries}')
 
     # Add 10 enties extra when create Prefix List for future expansion
-    max_entries: int = len(prefix_list_entries) + 10
+    max_entries: int = min(len(prefix_list_entries) + 10, 1000)
 
     logging.info(f'Creating VPC Prefix List "{prefix_list_name}" with max entries "{max_entries}" with address family "{prefix_list_ip_version}" with {len(address_list)} CIDRs. List: {address_list}')
     logging.info(f'VPC Prefix List entries in this call: {prefix_list_entries[0:100]}')
@@ -864,7 +871,12 @@ def lambda_handler(event, context):
                                 vpc_prefix_lists = list_prefix_lists(ec2_client)
 
                             should_summarize = config_service['PrefixList']['Summarize']
-                            prefix_list_names: dict[str, list[str]] = manage_prefix_list(ec2_client, vpc_prefix_lists, service_name, service_ranges, should_summarize)
+
+                            # left 2 for default route、rule
+                            chunk_size :int = 998
+                            if "ChunkSize" in config_service["PrefixList"]:
+                                chunk_size = config_service["PrefixList"]["ChunkSize"]
+                            prefix_list_names: dict[str, list[str]] = manage_prefix_list(ec2_client, vpc_prefix_lists, service_name, service_ranges, should_summarize, chunk_size)
                             resource_names['PrefixList']['created'] += prefix_list_names['created']
                             resource_names['PrefixList']['updated'] += prefix_list_names['updated']
                         except Exception as error:

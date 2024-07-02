@@ -5,7 +5,8 @@
             "Regions": ["sa-east-1"],
             "PrefixList": {
                 "Enable": true,
-                "Summarize": false
+                "Summarize": false,
+                "ChunkSize": 998
             },
             "WafIPSet": {
                 "Enable": true,
@@ -31,7 +32,8 @@
             "Regions": ["sa-east-1"],
             "PrefixList": {
                 "Enable": true,
-                "Summarize": false
+                "Summarize": false,
+                "ChunkSize": 500
             },
             "WafIPSet": {
                 "Enable": true,
